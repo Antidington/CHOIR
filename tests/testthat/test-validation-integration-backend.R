@@ -10,9 +10,8 @@
 
 # Only define mock class if the real ArchR package is not available
 if (!isClass("ArchRProject")) {
-  setClass("MockArchRProject", contains = "environment")
-  setIs("MockArchRProject", "ArchRProject")
-  mock_archr <- new("MockArchRProject")
+  setClass("ArchRProject", contains = "environment")
+  mock_archr <- new("ArchRProject")
 } else {
   # If ArchR is available, we still need a lightweight object
   # We will skip the tests that require a real ArchR object
