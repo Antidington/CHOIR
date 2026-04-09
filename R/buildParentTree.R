@@ -546,15 +546,15 @@ buildParentTree <- function(object,
     colnames(tmp) <- rownames(P0_dim_reduction[["reduction_coords"]][[1]])
     rownames(tmp) <- paste0("t",seq_len(nrow(tmp)))
     tmp_seurat <- Seurat::CreateSeuratObject(tmp, min.cells = 0, min.features = 0, assay = 'tmp')
-    dim_list = vector("list", length = length(use_assay_build))
-    for (i in 1:length(use_assay_build)) {
+    dim_list = vector("list", length = n_modalities)
+    for (i in 1:n_modalities) {
       tmp_seurat[[paste0("DR_", i)]] <- Seurat::CreateDimReducObject(embeddings = P0_dim_reduction[["reduction_coords"]][[i]],
                                                                      key = paste0("DR_", i, "_"), assay = 'tmp')
       dim_list[[i]] <- 1:ncol(P0_dim_reduction[["reduction_coords"]][[i]])
     }
     # Find neighbors
     P0_nearest_neighbors <- do.call(Seurat::FindMultiModalNeighbors, c(list("object" = tmp_seurat,
-                                                                            "reduction.list" = list(paste0("DR_", seq(1, length(use_assay_build)))),
+                                                                            "reduction.list" = list(paste0("DR_", seq(1, n_modalities))),
                                                                             "dim.list" = dim_list,
                                                                             "knn.graph.name" = "nn",
                                                                             "snn.graph.name" = "snn"),
@@ -562,7 +562,7 @@ buildParentTree <- function(object,
     # Dimensionality reduction distance matrix
     if (distance_approx == FALSE) {
       P0_reduction_dist <- .getMultiModalDistance(tmp_seurat,
-                                                  reduction_list = list(paste0("DR_", seq(1, length(use_assay_build)))),
+                                                  reduction_list = list(paste0("DR_", seq(1, n_modalities))),
                                                   dim_list = dim_list)
       object <- .storeData(object, key, "reduction", P0_reduction_dist, "P0_reduction_dist")
     }
