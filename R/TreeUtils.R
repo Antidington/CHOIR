@@ -403,7 +403,9 @@
                                                     nfeatures = n_var_features,
                                                     verbose = FALSE)
         var_features <- Seurat::VariableFeatures(tmp_seurat)
-        tmp_seurat <- Seurat::ScaleData(tmp_seurat, verbose = FALSE)
+        tmp_seurat <- Seurat::ScaleData(tmp_seurat,
+                                        features = var_features,
+                                        verbose = FALSE)
 
         # Check provided PCA parameters
         if (any(names(reduction_params) %in% c("object", "assay", "features", "seed.use"))) {
