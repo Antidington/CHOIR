@@ -932,7 +932,7 @@
     }
     # If normalization method is "SCT", stop if feature_set is "all"
     if (other[[1]] %in% c("buildTree", "pruneTree", "combineTrees")) {
-      if (other[[2]] == "SCTransform" & input == "all") {
+      if (!is.null(other[[2]]) && any(other[[2]] == "SCTransform") && input == "all") {
         stop("'SCTransform' normalization cannot be used when parameter '", name, "' is 'all', please set '", name,
              "' to 'var' or provide normalized data.")
       }
