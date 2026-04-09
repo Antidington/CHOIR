@@ -274,6 +274,13 @@
 #' ATAC-seq data. For multi-omic datasets, provide a vector with a value
 #' corresponding to each provided value of \code{use_assay} or
 #' \code{ArchR_matrix} in the same order. Defaults to \code{FALSE}.
+#' @param integration_backend A string indicating the integration backend to use
+#' for ArchR multimodal data. Must be \code{"archr"} or \code{"seurat"}.
+#' Required when \code{object} is an \code{ArchRProject}. \code{"archr"} uses
+#' \code{addCombinedDims()} for modality fusion; \code{"seurat"} uses Weighted
+#' Nearest Neighbors (WNN). For non-ArchR objects, this parameter is accepted
+#' but ignored with a warning. For single-modality ArchR objects, only
+#' \code{"archr"} is permitted. Defaults to \code{NULL}.
 #' @param n_cores A numerical value indicating the number of cores to use for
 #' parallelization. By default, CHOIR will use the number of available cores
 #' minus 2. CHOIR is parallelized at the computation of permutation test
@@ -347,6 +354,7 @@ CHOIR <- function(object,
                   reduction = NULL,
                   var_features = NULL,
                   atac = FALSE,
+                  integration_backend = NULL,
                   n_cores = NULL,
                   random_seed = 1,
                   verbose = TRUE) {
@@ -403,6 +411,7 @@ CHOIR <- function(object,
                       reduction = reduction,
                       var_features = var_features,
                       atac = atac,
+                      integration_backend = integration_backend,
                       n_cores = n_cores,
                       random_seed = random_seed,
                       verbose = verbose)

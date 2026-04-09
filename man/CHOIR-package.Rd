@@ -2,6 +2,7 @@
 % Please edit documentation in R/CHOIR-package.R
 \docType{package}
 \name{CHOIR-package}
+\alias{CHOIR}
 \alias{CHOIR-package}
 \title{CHOIR: CHOIR - Cluster Hierachy Optimization by Iterative Random forests}
 \description{

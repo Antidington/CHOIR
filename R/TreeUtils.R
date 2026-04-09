@@ -45,6 +45,7 @@
                              ArchR_matrix,
                              ArchR_depthcol,
                              atac,
+                             integration_backend = NULL,
                              use_cells = NULL,
                              return_full = FALSE,
                              n_cores,
@@ -117,6 +118,7 @@
                                              ArchR_matrix = ArchR_matrix_i,
                                              ArchR_depthcol = ArchR_depthcol_i,
                                              atac = atac_i,
+                                             integration_backend = integration_backend,
                                              use_cells = use_cells,
                                              return_full = methods::is(object, "ArchRProject"),
                                              n_cores = n_cores,
@@ -126,20 +128,28 @@
       reduction_coords_list[[i]] <- reduction_output_i[["reduction_coords"]]
       reduction_full_list[[i]] <- reduction_output_i[["full_reduction"]]
     }
-    # For ArchR objects, combine reductions
+    # For ArchR objects, combine reductions based on integration_backend
     if (methods::is(object, "ArchRProject")) {
-      for (i in 1:length(reduction_full_list)) {
-        object@reducedDims[[paste0("DR_", i)]] <- reduction_full_list[[i]]
+      if (integration_backend == "archr") {
+        # Fuse modalities via ArchR::addCombinedDims()
+        for (i in 1:length(reduction_full_list)) {
+          object@reducedDims[[paste0("DR_", i)]] <- reduction_full_list[[i]]
+        }
+        object <- suppressWarnings(suppressMessages(ArchR::addCombinedDims(object,
+                                                                           reducedDims = paste0("DR_", seq(1:length(reduction_full_list))),
+                                                                           name =  "LSI_Combined")))
+        if (return_full == TRUE) {
+          full_reduction <- object@reducedDims$LSI_Combined
+        }
+        reduction_output <- list("reduction_coords" = object@reducedDims$LSI_Combined$matRD,
+                                 "var_features" = var_features_list,
+                                 "full_reduction" = full_reduction)
+      } else if (integration_backend == "seurat") {
+        # Return per-modality reductions as a list for WNN fusion downstream
+        reduction_output <- list("reduction_coords" = reduction_coords_list,
+                                 "var_features" = var_features_list,
+                                 "full_reduction" = full_reduction)
       }
-      object <- suppressWarnings(suppressMessages(ArchR::addCombinedDims(object,
-                                                                         reducedDims = paste0("DR_", seq(1:length(reduction_full_list))),
-                                                                         name =  "LSI_Combined")))
-      if (return_full == TRUE) {
-        full_reduction <- object@reducedDims$LSI_Combined
-      }
-      reduction_output <- list("reduction_coords" = object@reducedDims$LSI_Combined$matRD,
-                               "var_features" = var_features_list,
-                               "full_reduction" = full_reduction)
     } else {
       # Create output list
       reduction_output <- list("reduction_coords" = reduction_coords_list,
@@ -357,13 +367,119 @@
         reduction_method <- "IterativeLSI"
       } else {
         # Check if provided method is among allowable methods
-        if (reduction_method != "IterativeLSI") {
-          stop("Allowable dimensionality reduction methods for ArchRProject objects include 'IterativeLSI'. Please supply valid input!")
+        if (!(reduction_method %in% c("IterativeLSI", "PCA"))) {
+          stop("Allowable dimensionality reduction methods for ArchRProject objects include 'IterativeLSI' and 'PCA'. Please supply valid input!")
         }
       }
       # By method
       if (verbose) message(format(Sys.time(), "%Y-%m-%d %X"), " : Running ", reduction_method, " with ", n_var_features, " variable features..")
-      if (reduction_method == "IterativeLSI") {
+      if (reduction_method == "PCA") {
+        # ------------------------------------------------------------------
+        # RNA preprocessing via Seurat pipeline (for ArchR multimodal)
+        # ------------------------------------------------------------------
+        # 1. Pull raw GeneExpressionMatrix from ArchR
+        se_matrix <- suppressMessages(
+          ArchR::getMatrixFromProject(object, useMatrix = ArchR_matrix)
+        )
+        feature_names <- se_matrix@elementMetadata$name
+        count_matrix <- se_matrix@assays@data[[ArchR_matrix]]
+        rownames(count_matrix) <- feature_names
+        if (!is.null(use_cells)) {
+          count_matrix <- count_matrix[, use_cells]
+        }
+
+        # 2. Create temporary Seurat object
+        tmp_seurat <- Seurat::CreateSeuratObject(counts = count_matrix,
+                                                  min.cells = 0,
+                                                  min.features = 0)
+
+        # 3. Normalize if LogNorm
+        if (normalization_method == "LogNorm") {
+          tmp_seurat <- Seurat::NormalizeData(tmp_seurat, verbose = FALSE)
+        }
+
+        # 4. Find variable features, scale, and run PCA
+        tmp_seurat <- Seurat::FindVariableFeatures(tmp_seurat,
+                                                    nfeatures = n_var_features,
+                                                    verbose = FALSE)
+        var_features <- Seurat::VariableFeatures(tmp_seurat)
+        tmp_seurat <- Seurat::ScaleData(tmp_seurat, verbose = FALSE)
+
+        # Check provided PCA parameters
+        if (any(names(reduction_params) %in% c("object", "assay", "features", "seed.use"))) {
+          stop("Parameter inputs for 'reduction_params' conflict with parameters that are necessarily set by CHOIR. Please supply valid input!")
+        }
+        pca_params <- reduction_params
+        if (!any(names(pca_params) == "verbose")) {
+          pca_params$verbose <- FALSE
+        }
+        if (!any(names(pca_params) == "npcs")) {
+          pca_params$npcs <- min(50, n_cells - 1)
+        } else {
+          pca_params$npcs <- min(pca_params$npcs, n_cells - 1)
+        }
+        tmp_seurat <- suppressWarnings(do.call(Seurat::RunPCA,
+                                                c(list("object" = tmp_seurat,
+                                                       "features" = var_features,
+                                                       "seed.use" = random_seed),
+                                                  pca_params)))
+        reduction_coords <- Seurat::Embeddings(tmp_seurat, "pca")
+
+        # 5. Build ArchR-compatible reducedDims entry for Harmony/CombinedDims
+        pca_rd <- list(matSVD = reduction_coords,
+                       matDR = reduction_coords,
+                       params = list(reduction_method = "PCA"))
+        object@reducedDims[["CHOIR_PCA"]] <- pca_rd
+
+        # 6. Harmony batch correction (via ArchR)
+        if (batch_correction_method == "Harmony") {
+          n_batches <- dplyr::n_distinct(object@cellColData[, batch_labels])
+        } else {
+          n_batches <- 1
+        }
+        if (batch_correction_method == "Harmony" & n_batches > 1) {
+          if (any(names(batch_correction_params) %in% c("ArchRProj", "reducedDims", "name", "groupBy", "force"))) {
+            stop("Parameter inputs for 'batch_correction_params' conflict with parameters that are necessarily set by CHOIR. Please supply valid input!")
+          }
+          if (!any(names(batch_correction_params) == "verbose")) {
+            batch_correction_params$verbose <- FALSE
+          }
+          if (!("character" %in% methods::is(object@cellColData[, batch_labels]))) {
+            object@cellColData[, batch_labels] <- as.character(object@cellColData[, batch_labels])
+          }
+          if (verbose) message(format(Sys.time(), "%Y-%m-%d %X"), " : Running Harmony batch correction using column '", batch_labels, "'..")
+          object <- suppressWarnings(suppressMessages(
+            do.call(ArchR::addHarmony,
+                    c(list("ArchRProj" = object,
+                           "reducedDims" = "CHOIR_PCA",
+                           "name" = "CHOIR_Harmony",
+                           "groupBy" = batch_labels,
+                           "force" = TRUE),
+                      batch_correction_params))))
+
+          reduction_coords <- object@reducedDims$CHOIR_Harmony$matDR
+          if (return_full == TRUE) {
+            full_reduction <- object@reducedDims$CHOIR_Harmony
+          }
+        } else {
+          if (batch_correction_method == "Harmony") {
+            message(format(Sys.time(), "%Y-%m-%d %X"), " : Only one batch present. Skipped Harmony batch correction.")
+          }
+          reduction_coords <- pca_rd$matSVD
+          if (return_full == TRUE) {
+            full_reduction <- pca_rd
+          }
+        }
+
+        # Clean up
+        rm(tmp_seurat)
+        rm(se_matrix)
+        rm(count_matrix)
+
+      } else if (reduction_method == "IterativeLSI") {
+        # ------------------------------------------------------------------
+        # ATAC / standard ArchR preprocessing via IterativeLSI
+        # ------------------------------------------------------------------
         # Check provided parameters
         if (any(names(reduction_params) %in% c("ArchRProj", "name", "varFeatures", "saveIterations", "useMatrix", "depthCol", "force", "threads", "seed"))) {
           stop("Parameter inputs for 'reduction_params' conflict with parameters that are necessarily set by CHOIR. Please supply valid input!")

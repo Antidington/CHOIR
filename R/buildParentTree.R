@@ -140,6 +140,13 @@
 #' ATAC-seq data. For multi-omic datasets, provide a vector with a value
 #' corresponding to each provided value of \code{use_assay} or
 #' \code{ArchR_matrix} in the same order. Defaults to \code{FALSE}.
+#' @param integration_backend A string indicating the integration backend to use
+#' for ArchR multimodal data. Must be \code{"archr"} or \code{"seurat"}.
+#' Required when \code{object} is an \code{ArchRProject}. \code{"archr"} uses
+#' \code{addCombinedDims()} for modality fusion; \code{"seurat"} uses Weighted
+#' Nearest Neighbors (WNN). For non-ArchR objects, this parameter is accepted
+#' but ignored with a warning. For single-modality ArchR objects, only
+#' \code{"archr"} is permitted. Defaults to \code{NULL}.
 #' @param n_cores A numerical value indicating the number of cores to use for
 #' parallelization. By default, CHOIR will use the number of available cores
 #' minus 2. CHOIR is parallelized at the computation of permutation test
@@ -189,6 +196,7 @@ buildParentTree <- function(object,
                             reduction = NULL,
                             var_features = NULL,
                             atac = FALSE,
+                            integration_backend = NULL,
                             n_cores = NULL,
                             random_seed = 1,
                             verbose = TRUE) {
@@ -242,7 +250,7 @@ buildParentTree <- function(object,
   # Get cell IDs
   cell_IDs <- .getCellIDs(object, use_assay = use_assay)
 
-  .validInput(distance_approx, "distance_approx", list(length(cell_IDs), object, n_modalities))
+  .validInput(distance_approx, "distance_approx", list(length(cell_IDs), object, n_modalities, integration_backend))
   .validInput(ArchR_depthcol, "ArchR_depthcol", list(object, n_modalities))
   .validInput(reduction, "reduction", list("buildTree", object))
   .validInput(var_features, "var_features", reduction)
@@ -254,6 +262,9 @@ buildParentTree <- function(object,
   .validInput(batch_correction_method, "batch_correction_method", n_modalities)
   .validInput(batch_correction_params, "batch_correction_params", list(object, ArchR_matrix, use_assay, batch_correction_method))
   .validInput(batch_labels, "batch_labels", object)
+  .validInput(integration_backend, "integration_backend",
+              list(object, n_modalities, ArchR_matrix, atac, reduction_method,
+                   normalization_method, batch_correction_method, batch_labels, countsplit))
   .validInput(neighbor_params, "neighbor_params", list(object, n_modalities))
   .validInput(cluster_params, "cluster_params")
   .validInput(n_cores, "n_cores")
@@ -281,7 +292,7 @@ buildParentTree <- function(object,
   # Set downsampling rate
   if (downsampling_rate == "auto") {
     downsampling_rate <- min(1, (1/2)^(log10(length(cell_IDs)/5000)))
-    if (batch_correction_method == "none") {
+    if (all(batch_correction_method == "none")) {
       downsampling_rate <- downsampling_rate*0.5
     }
   }
@@ -292,8 +303,10 @@ buildParentTree <- function(object,
 
   # Check that required packages are loaded
   # Seurat needs to be loaded to use Seurat:::FindModalityWeights() and Seurat:::MultiModalNN()
-  if (n_modalities >= 2 & !methods::is(object, "ArchRProject")) {
-    if (seurat_version == "v4") {
+  if (n_modalities >= 2 & (!methods::is(object, "ArchRProject") | (!is.null(integration_backend) && integration_backend == "seurat"))) {
+    if (methods::is(object, "ArchRProject")) {
+      .requirePackage("Seurat", source = "cran")
+    } else if (seurat_version == "v4") {
       .requirePackage("Seurat", source = "cran")
     } else if (seurat_version == "v5") {
       stop("Please load Seurat v5 package prior to running CHOIR.")
@@ -301,7 +314,7 @@ buildParentTree <- function(object,
   }
 
   # If batch_correction_method is Harmony, make sure batch IDs is a character vector
-  if (batch_correction_method == "Harmony") {
+  if (any(batch_correction_method == "Harmony")) {
     batches <- as.character(.retrieveData(object = object, key = key, type = "cell_metadata", name = batch_labels))
     if (!("character" %in% methods::is(batches))) {
       warning("Metadata column '", batch_labels, "' converted to type character.")
@@ -420,9 +433,10 @@ buildParentTree <- function(object,
                        `if`(!is.null(reduction) & !is.null(var_features), ", ", ""),
                        `if`(!is.null(reduction), "var_features", ""),
                        "\n - # of cells: ", length(cell_IDs),
-                       "\n - # of batches: ", `if`(batch_correction_method == "none", 1, dplyr::n_distinct(batches)),
+                       "\n - # of batches: ", `if`(all(batch_correction_method == "none"), 1, dplyr::n_distinct(batches)),
                        "\n - # of modalities: ", n_modalities,
                        "\n - ATAC data: ", paste(atac, collapse = ", "),
+                       `if`(!is.null(integration_backend), paste0("\n - Integration backend: ", integration_backend), ""),
                        "\n - Countsplitting: ", countsplit,
                        countsplit_text)
   if (verbose) message("\nProceeding with the following parameters:",
@@ -442,7 +456,7 @@ buildParentTree <- function(object,
                                                                            paste0("\n     - ", paste0(paste0(names(batch_correction_params), ": ",
                                                                                                              batch_correction_params),
                                                                                                       collapse = "\n     - "))),
-                       `if`(batch_correction_method != 'none', paste0("\n - Metadata column containing batch information: ", batch_labels), ""),
+                       `if`(any(batch_correction_method != 'none'), paste0("\n - Metadata column containing batch information: ", batch_labels), ""),
                        "\n - Nearest neighbor parameters provided: ", `if`(length(neighbor_params) == 0, "No",
                                                                            paste0("\n     - ", paste0(paste0(names(neighbor_params), ": ",
                                                                                                              neighbor_params),
@@ -471,6 +485,7 @@ buildParentTree <- function(object,
                                          ArchR_matrix = ArchR_matrix_build,
                                          ArchR_depthcol = ArchR_depthcol,
                                          atac = atac,
+                                         integration_backend = integration_backend,
                                          return_full = methods::is(object, "ArchRProject"),
                                          n_cores = n_cores,
                                          random_seed = random_seed,
@@ -485,9 +500,12 @@ buildParentTree <- function(object,
   object <- .storeData(object, key, "var_features", P0_dim_reduction[["var_features"]], "P0_var_features")
   object <- .storeData(object, key, "cell_IDs", cell_IDs, "P0_cell_IDs")
   # Store full reduction
-  if (methods::is(object, "ArchRProject")) {
+  if (methods::is(object, "ArchRProject") & (is.null(integration_backend) || integration_backend == "archr")) {
     object@reducedDims$CHOIR_P0_reduction <- P0_dim_reduction[["full_reduction"]]
     # Clean up
+    P0_dim_reduction[["full_reduction"]] <- NULL
+  } else if (methods::is(object, "ArchRProject") & !is.null(integration_backend) && integration_backend == "seurat") {
+    # For seurat backend, per-modality reductions stored as list
     P0_dim_reduction[["full_reduction"]] <- NULL
   } else {
     object <- .storeData(object = object,
@@ -506,7 +524,7 @@ buildParentTree <- function(object,
   # ---------------------------------------------------------------------------
   if (verbose) message(format(Sys.time(), "%Y-%m-%d %X"), " : (Step 2/4) Generating initial nearest neighbors graph..")
   # 1 vs. multiple dimensionality reductions
-  if (n_modalities < 2 | methods::is(object, "ArchRProject")) {
+  if (n_modalities < 2 | (methods::is(object, "ArchRProject") & (is.null(integration_backend) || integration_backend == "archr"))) {
     # Number & names of cells
     n_cells <- nrow(P0_dim_reduction[["reduction_coords"]])
     cell_IDs <- rownames(P0_dim_reduction[["reduction_coords"]])
@@ -676,6 +694,7 @@ buildParentTree <- function(object,
                          "countsplit_text" = countsplit_text,
                          "reduction_provided" = !is.null(reduction),
                          "atac" = atac,
+                         "integration_backend" = integration_backend,
                          "random_seed" = random_seed)
 
   object <- .storeData(object, key, "parameters", parameter_list, "buildParentTree_parameters")

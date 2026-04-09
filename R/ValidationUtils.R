@@ -141,8 +141,8 @@
     }
     # Each value must be among the permitted values for the provided object type
     for (i in 1:length(input)) {
-      if (methods::is(other[[1]], "ArchRProject") & !(input[i] == "none")) {
-        stop("Input value '", input[i], "' for '", name, "' is not among the permitted values for ArchR objects: 'none'. Please supply valid input!")
+      if (methods::is(other[[1]], "ArchRProject") & !(input[i] %in% c("none", "LogNorm"))) {
+        stop("Input value '", input[i], "' for '", name, "' is not among the permitted values for ArchR objects: 'none' and 'LogNorm'. Please supply valid input!")
       } else if (!(methods::is(other[[1]], "ArchRProject")) & !(input[i] %in% c("none", "SCTransform"))) {
         stop("Input value '", input[i], "' for '", name, "' is not among the permitted values for Seurat & SingleCellExperiment objects: 'none' and 'SCTransform'. Please supply valid input!")
       }
@@ -184,8 +184,8 @@
       }
       # Each value must be among the permitted values for the provided object type
       for (i in 1:length(input)) {
-        if (methods::is(other[[1]], "ArchRProject") & !(input[i] == "IterativeLSI")) {
-          stop("Input value '", input[i], "' for '", name, "' is not among the permitted values for ArchR objects: 'IterativeLSI'. Please supply valid input!")
+        if (methods::is(other[[1]], "ArchRProject") & !(input[i] %in% c("IterativeLSI", "PCA"))) {
+          stop("Input value '", input[i], "' for '", name, "' is not among the permitted values for ArchR objects: 'IterativeLSI' and 'PCA'. Please supply valid input!")
         } else if (!(methods::is(other[[1]], "ArchRProject")) & !(input[i] %in% c("PCA", "LSI"))) {
           stop("Input value '", input[i], "' for '", name, "' is not among the permitted values for Seurat & SingleCellExperiment objects: 'PCA' and 'LSI'. Please supply valid input!")
         }
@@ -629,6 +629,109 @@
     }
   }
 
+  # integration_backend
+  if (name == "integration_backend") {
+    # other is a list: list(object, n_modalities, ArchR_matrix, atac,
+    #                       reduction_method, normalization_method,
+    #                       batch_correction_method, batch_labels, countsplit)
+    obj <- other[[1]]
+    n_mod <- other[[2]]
+    arch_matrix <- other[[3]]
+    atac_vec <- other[[4]]
+    red_method <- other[[5]]
+    norm_method <- other[[6]]
+    batch_method <- other[[7]]
+    batch_lab <- other[[8]]
+    cs <- other[[9]]
+
+    # For non-ArchR objects: warn and return
+    if (!methods::is(obj, "ArchRProject")) {
+      if (!is.null(input)) {
+        warning("Input value for 'integration_backend' is ignored for non-ArchR objects.")
+      }
+    } else {
+      # For ArchR objects: must be provided
+      if (is.null(input)) {
+        stop("Input value for 'integration_backend' is required for ArchRProject objects. Please supply 'archr' or 'seurat'.")
+      }
+      # Must be character, length 1
+      if (!methods::is(input, "character") | length(input) != 1) {
+        stop("Input value for 'integration_backend' must be a single value of class 'character'. Please supply valid input!")
+      }
+      # Must be "archr" or "seurat"
+      if (!(input %in% c("archr", "seurat"))) {
+        stop("Input value '", input, "' for 'integration_backend' is not among the permitted values: 'archr' and 'seurat'. Please supply valid input!")
+      }
+      # Single-modality: only "archr" allowed
+      if (n_mod < 2 & input == "seurat") {
+        stop("Single-modality ArchR objects only support integration_backend = 'archr'. Please supply valid input!")
+      }
+      # Multimodal-specific rules
+      if (n_mod >= 2) {
+        # Exactly 2 modalities in milestone 1
+        if (n_mod != 2) {
+          stop("ArchR multimodal currently supports exactly 2 modalities. Please supply valid input!")
+        }
+        # All per-modality vectors must be length == n_mod (no broadcasting)
+        if (length(atac_vec) != n_mod) {
+          stop("For ArchR multimodal, 'atac' must be a vector of length ", n_mod, ". Please supply valid input!")
+        }
+        if (length(arch_matrix) != n_mod) {
+          stop("For ArchR multimodal, 'ArchR_matrix' must be a vector of length ", n_mod, ". Please supply valid input!")
+        }
+        if (!is.null(red_method) & length(red_method) != n_mod) {
+          stop("For ArchR multimodal, 'reduction_method' must be a vector of length ", n_mod, ". Please supply valid input!")
+        }
+        if (length(norm_method) != n_mod) {
+          stop("For ArchR multimodal, 'normalization_method' must be a vector of length ", n_mod, ". Please supply valid input!")
+        }
+        if (length(batch_method) != n_mod) {
+          stop("For ArchR multimodal, 'batch_correction_method' must be a vector of length ", n_mod, ". Please supply valid input!")
+        }
+        # Exactly one atac=TRUE and one atac=FALSE
+        if (sum(atac_vec) != 1 | sum(!atac_vec) != 1) {
+          stop("ArchR multimodal requires exactly one atac = TRUE and one atac = FALSE modality. Please supply valid input!")
+        }
+        atac_idx <- which(atac_vec)
+        rna_idx <- which(!atac_vec)
+        # Matrix identity: ATAC must be TileMatrix, RNA must be GeneExpressionMatrix
+        if (arch_matrix[atac_idx] != "TileMatrix") {
+          stop("ATAC modality (atac = TRUE) requires ArchR_matrix = 'TileMatrix'. Please supply valid input!")
+        }
+        if (arch_matrix[rna_idx] != "GeneExpressionMatrix") {
+          stop("RNA modality (atac = FALSE) requires ArchR_matrix = 'GeneExpressionMatrix'. Please supply valid input!")
+        }
+        # Method pairing: ATAC -> IterativeLSI, RNA -> PCA
+        if (!is.null(red_method)) {
+          if (red_method[atac_idx] != "IterativeLSI") {
+            stop("ATAC modality reduction_method must be 'IterativeLSI'. Please supply valid input!")
+          }
+          if (red_method[rna_idx] != "PCA") {
+            stop("RNA modality reduction_method must be 'PCA'. Please supply valid input!")
+          }
+        }
+        # LogNorm is RNA-only
+        if (norm_method[atac_idx] == "LogNorm") {
+          stop("'LogNorm' normalization is only permitted for RNA (atac = FALSE) modalities. Please supply valid input!")
+        }
+        # Countsplit hard error
+        if (cs == TRUE) {
+          stop("Count splitting is not supported for ArchR multimodal runs in the current version.")
+        }
+        # Batch labels required if any modality uses Harmony
+        if (any(batch_method == "Harmony")) {
+          if (is.null(batch_lab)) {
+            stop("'batch_labels' is required when any modality uses Harmony batch correction. Please supply valid input!")
+          }
+          # Warn if only one modality uses Harmony
+          if (sum(batch_method == "Harmony") == 1) {
+            warning("Only one modality uses Harmony batch correction. Both modalities will still be fused, but batch effects may remain in the uncorrected modality.")
+          }
+        }
+      }
+    }
+  }
+
   # n_cores
   if (name == "n_cores") {
     # If not NULL
@@ -804,7 +907,15 @@
         ("Seurat" %in% methods::is(other[[2]]) | "SingleCellExperiment" %in% methods::is(other[[2]])) &
         other[[3]] > 1) {
       stop("Distance approximation is incompatible with multi-modal data of class 'Seurat' or 'SingleCellExperiment'. Please provide an object of class 'ArchRProject', set '", name, "' to 'FALSE', or use a single modality.")
-    } else if (input == FALSE & other[[1]] >= 500) { # If FALSE and number of cells is higher than 500, issue warning
+    }
+    # If TRUE and ArchR multimodal with "seurat" backend, stop (WNN requires exact distances)
+    if (input == TRUE &
+        "ArchRProject" %in% methods::is(other[[2]]) &
+        other[[3]] > 1 &
+        !is.null(other[[4]]) && other[[4]] == "seurat") {
+      stop("Distance approximation is incompatible with ArchR multimodal data using integration_backend = 'seurat'. Please set '", name, "' to FALSE.")
+    }
+    if (input == FALSE & other[[1]] >= 500) { # If FALSE and number of cells is higher than 500, issue warning
       warning("Setting parameter '", name, "' to ", input, " may slow down computation.")
     }
   }
