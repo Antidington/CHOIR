@@ -433,7 +433,8 @@
 
         # 6. Harmony batch correction (via ArchR)
         if (batch_correction_method == "Harmony") {
-          n_batches <- dplyr::n_distinct(object@cellColData[, batch_labels])
+          batch_values <- as.vector(object@cellColData[[batch_labels]])
+          n_batches <- dplyr::n_distinct(batch_values)
         } else {
           n_batches <- 1
         }
@@ -542,7 +543,8 @@
         # Harmony batch correction
         # Check number of batches
         if (batch_correction_method == "Harmony") {
-          n_batches <- dplyr::n_distinct(object@cellColData[, batch_labels])
+          batch_values <- as.vector(object@cellColData[[batch_labels]])
+          n_batches <- dplyr::n_distinct(batch_values)
         } else {
           n_batches <- 1
         }
