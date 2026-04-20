@@ -216,7 +216,13 @@ buildParentTree <- function(object,
 
   # Number of modalities & object type
   if (methods::is(object, "ArchRProject")) {
-    n_modalities <- max(length(ArchR_matrix), 1)
+    n_modalities <- max(c(length(ArchR_matrix),
+                          length(ArchR_depthcol),
+                          length(atac),
+                          length(reduction_method),
+                          length(normalization_method),
+                          length(batch_correction_method),
+                          1))
     object_type <- "ArchRProject"
     .requirePackage("ArchR", installInfo = "Instructions at archrproject.com")
   } else {
