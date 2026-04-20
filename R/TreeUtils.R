@@ -664,6 +664,13 @@
 # cluster_params -- A list of additional parameters to be passed to Seurat::FindClusters()
 # random_seed -- A numeric value indicating the random seed used
 # verbose -- A Boolean value indicating whether to use verbose output during the execution of this function
+.getBaselineResolution <- function(cluster_params) {
+  if (!is.null(cluster_params$algorithm) && cluster_params$algorithm == 4) {
+    return(1e-6)
+  }
+  return(0)
+}
+
 .getStartingResolution <- function(snn_matrix,
                                    cluster_params = cluster_params,
                                    random_seed = 1,
@@ -677,9 +684,11 @@
     cluster_params$method <- "igraph"
   }
 
+  baseline_resolution <- .getBaselineResolution(cluster_params)
+
   # Find initial cluster results
   res0_clusters <- suppressWarnings(do.call(Seurat::FindClusters, c(list("object" = snn_matrix,
-                                                                         "resolution" = 0,
+                                                                         "resolution" = baseline_resolution,
                                                                          "random.seed" = random_seed),
                                                                     cluster_params)))
   # If singletons are grouped
