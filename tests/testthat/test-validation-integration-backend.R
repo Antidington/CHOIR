@@ -4,6 +4,8 @@
 # ArchRProject class so that methods::is(obj, "ArchRProject") returns TRUE
 # without requiring the full ArchR package.
 
+source(testthat::test_path("..", "..", "R", "ValidationUtils.R"), local = TRUE)
+
 # ---------------------------------------------------------------------------
 # Setup: mock ArchRProject class
 # ---------------------------------------------------------------------------
@@ -29,7 +31,7 @@ class(mock_seurat) <- "Seurat"
 validate_ib <- function(input, object, n_mod, arch_matrix, atac_vec,
                         red_method, norm_method, batch_method,
                         batch_labels, countsplit) {
-  CHOIR:::.validInput(
+  .validInput(
     input = input,
     name = "integration_backend",
     other = list(object, n_mod, arch_matrix, atac_vec,
@@ -264,15 +266,16 @@ if (!is.null(mock_archr)) {
     )
   })
 
-  test_that("NULL reduction_method in multimodal passes (defaults applied later)", {
-    expect_silent(
+  test_that("NULL reduction_method in multimodal errors", {
+    expect_error(
       validate_ib("archr", mock_archr, 2,
                    c("TileMatrix", "GeneExpressionMatrix"),
                    c(TRUE, FALSE),
                    NULL,
                    c("none", "LogNorm"),
                    c("none", "none"),
-                   NULL, FALSE)
+                   NULL, FALSE),
+      "must be explicitly provided"
     )
   })
 }
@@ -284,19 +287,19 @@ if (!is.null(mock_archr)) {
 if (!is.null(mock_archr)) {
   test_that("ArchR normalization_method allows 'none'", {
     expect_silent(
-      CHOIR:::.validInput("none", "normalization_method", list(mock_archr, 1, NULL))
+      .validInput("none", "normalization_method", list(mock_archr, 1, NULL))
     )
   })
 
   test_that("ArchR normalization_method allows 'LogNorm'", {
     expect_silent(
-      CHOIR:::.validInput("LogNorm", "normalization_method", list(mock_archr, 1, NULL))
+      .validInput("LogNorm", "normalization_method", list(mock_archr, 1, NULL))
     )
   })
 
   test_that("ArchR normalization_method rejects 'SCTransform'", {
     expect_error(
-      CHOIR:::.validInput("SCTransform", "normalization_method", list(mock_archr, 1, NULL)),
+      .validInput("SCTransform", "normalization_method", list(mock_archr, 1, NULL)),
       "not among the permitted values"
     )
   })
@@ -309,19 +312,19 @@ if (!is.null(mock_archr)) {
 if (!is.null(mock_archr)) {
   test_that("ArchR reduction_method allows 'IterativeLSI'", {
     expect_silent(
-      CHOIR:::.validInput("IterativeLSI", "reduction_method", list(mock_archr, 1))
+      .validInput("IterativeLSI", "reduction_method", list(mock_archr, 1))
     )
   })
 
   test_that("ArchR reduction_method allows 'PCA'", {
     expect_silent(
-      CHOIR:::.validInput("PCA", "reduction_method", list(mock_archr, 1))
+      .validInput("PCA", "reduction_method", list(mock_archr, 1))
     )
   })
 
   test_that("ArchR reduction_method rejects 'LSI'", {
     expect_error(
-      CHOIR:::.validInput("LSI", "reduction_method", list(mock_archr, 1)),
+      .validInput("LSI", "reduction_method", list(mock_archr, 1)),
       "not among the permitted values"
     )
   })

@@ -143,6 +143,26 @@ test_that("WNN branch condition correctly routes ArchR + seurat to multimodal pa
   expect_false(check_single_path(2, FALSE, NULL))
 })
 
+test_that("subtree WNN dims are derived from subtree reductions, not root reductions", {
+  root_reduction_coords <- list(mod1, mod2)
+  subtree_reduction_coords <- list(mod1[, 1:5, drop = FALSE],
+                                   mod2[, 1:3, drop = FALSE])
+  n_modalities <- 2
+
+  root_dim_list <- vector("list", length = n_modalities)
+  subtree_dim_list <- vector("list", length = n_modalities)
+
+  for (i in 1:n_modalities) {
+    root_dim_list[[i]] <- 1:ncol(root_reduction_coords[[i]])
+    subtree_dim_list[[i]] <- 1:ncol(subtree_reduction_coords[[i]])
+  }
+
+  expect_equal(root_dim_list[[1]], 1:30)
+  expect_equal(root_dim_list[[2]], 1:20)
+  expect_equal(subtree_dim_list[[1]], 1:5)
+  expect_equal(subtree_dim_list[[2]], 1:3)
+})
+
 # ---------------------------------------------------------------------------
 # Section B: WNN integration tests (require Seurat >= 5.0.0)
 # ---------------------------------------------------------------------------

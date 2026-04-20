@@ -360,7 +360,13 @@ buildTree <- function(object,
 
   # Number of modalities & object type
   if (methods::is(object, "ArchRProject")) {
-    n_modalities <- max(length(ArchR_matrix), 1)
+    n_modalities <- max(c(length(ArchR_matrix),
+                          length(ArchR_depthcol),
+                          length(atac),
+                          length(reduction_method),
+                          length(normalization_method),
+                          length(batch_correction_method),
+                          1))
     object_type <- "ArchRProject"
     .requirePackage("ArchR", installInfo = "Instructions at archrproject.com")
   } else {
@@ -1032,7 +1038,7 @@ buildTree <- function(object,
           for (m in 1:n_modalities) {
             tmp_seurat[[paste0("DR_", m)]] <- Seurat::CreateDimReducObject(embeddings = P_i_dim_reduction[["reduction_coords"]][[m]],
                                                                            key = paste0("DR_", m, "_"), assay = 'tmp')
-            dim_list[[m]] <- 1:ncol(P0_dim_reduction[["reduction_coords"]][[m]])
+            dim_list[[m]] <- 1:ncol(P_i_dim_reduction[["reduction_coords"]][[m]])
           }
           # Find neighbors
           P_i_nearest_neighbors <- do.call(Seurat::FindMultiModalNeighbors, c(list("object" = tmp_seurat,

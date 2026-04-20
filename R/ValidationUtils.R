@@ -679,7 +679,10 @@
         if (length(arch_matrix) != n_mod) {
           stop("For ArchR multimodal, 'ArchR_matrix' must be a vector of length ", n_mod, ". Please supply valid input!")
         }
-        if (!is.null(red_method) & length(red_method) != n_mod) {
+        if (is.null(red_method)) {
+          stop("For ArchR multimodal, 'reduction_method' must be explicitly provided as a vector of length ", n_mod, ". Please supply valid input!")
+        }
+        if (length(red_method) != n_mod) {
           stop("For ArchR multimodal, 'reduction_method' must be a vector of length ", n_mod, ". Please supply valid input!")
         }
         if (length(norm_method) != n_mod) {
