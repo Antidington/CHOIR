@@ -428,9 +428,12 @@
         reduction_coords <- Seurat::Embeddings(tmp_seurat, "pca")
 
         # 5. Build ArchR-compatible reducedDims entry for Harmony/CombinedDims
-        pca_rd <- list(matSVD = reduction_coords,
-                       matDR = reduction_coords,
-                       params = list(reduction_method = "PCA"))
+        pca_rd <- list(matDR = reduction_coords,
+                       matSVD = reduction_coords,
+                       params = list(reduction_method = "PCA"),
+                       date = Sys.time(),
+                       scaleDims = NA,
+                       corToDepth = NA)
         object@reducedDims[["CHOIR_PCA"]] <- pca_rd
 
         # 6. Harmony batch correction (via ArchR)
