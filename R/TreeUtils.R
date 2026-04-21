@@ -671,6 +671,10 @@
   return(0)
 }
 
+.usesHarmony <- function(batch_correction_method) {
+  any(batch_correction_method == "Harmony")
+}
+
 .getStartingResolution <- function(snn_matrix,
                                    cluster_params = cluster_params,
                                    random_seed = 1,
@@ -1692,6 +1696,7 @@
   }
 
   # Data frame to gather comparison records
+  use_batch_metrics <- .usesHarmony(batch_correction_method)
   all_metrics <- c('comparison', 'cluster1_size', 'cluster2_size', 'sample_size',
                    'mean_accuracy', 'var_accuracy', 'mean_errors',
                    'mean_permuted_accuracy', 'var_permuted_accuracy',
@@ -1706,7 +1711,7 @@
   selected_metrics <- all_metrics[c(1:11,
                                     `if`(max_repeat_errors > 0, 12:15, NULL),
                                     `if`(max_repeat_errors > 0, 16:19, NULL),
-                                    `if`(batch_correction_method == "Harmony", 20:22, NULL),
+                                    `if`(use_batch_metrics, 20:22, NULL),
                                     `if`(min_connections > 0, 23, NULL),
                                     24:25)]
 
@@ -1890,12 +1895,12 @@
               # Check if this pair of clusters should remain split
               comparison <- .runPermutationTest(cluster1_name = "Cluster1",
                                                 cluster1_cells = cluster1_cells,
-                                                cluster1_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                cluster1_cell_batches = `if`(use_batch_metrics,
                                                                              batches[cluster1_cells],
                                                                              NULL),
                                                 cluster2_name  = "Cluster2",
                                                 cluster2_cells = cluster2_cells,
-                                                cluster2_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                cluster2_cell_batches = `if`(use_batch_metrics,
                                                                              batches[cluster2_cells],
                                                                              NULL),
                                                 alpha = alpha,
@@ -2023,12 +2028,12 @@
             # Check if this pair of clusters should remain split
             comparison <- .runPermutationTest(cluster1_name = "Cluster1",
                                               cluster1_cells = cluster1_cells,
-                                              cluster1_cell_batches = `if`(batch_correction_method == "Harmony",
+                                              cluster1_cell_batches = `if`(use_batch_metrics,
                                                                            batches[cluster1_cells],
                                                                            NULL),
                                               cluster2_name  = "Cluster2",
                                               cluster2_cells = cluster2_cells,
-                                              cluster2_cell_batches = `if`(batch_correction_method == "Harmony",
+                                              cluster2_cell_batches = `if`(use_batch_metrics,
                                                                            batches[cluster2_cells],
                                                                            NULL),
                                               alpha = alpha,
@@ -2110,12 +2115,12 @@
                   # Check if this pair of clusters should remain split
                   comparison <- .runPermutationTest(cluster1_name = "Cluster1",
                                                     cluster1_cells = cluster1_cells,
-                                                    cluster1_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                    cluster1_cell_batches = `if`(use_batch_metrics,
                                                                                  batches[cluster1_cells],
                                                                                  NULL),
                                                     cluster2_name  = "Cluster2",
                                                     cluster2_cells = cluster2_cells,
-                                                    cluster2_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                    cluster2_cell_batches = `if`(use_batch_metrics,
                                                                                  batches[cluster2_cells],
                                                                                  NULL),
                                                     alpha = alpha,
