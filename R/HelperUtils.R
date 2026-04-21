@@ -305,18 +305,18 @@ getRecords <- function(object,
     if (is.null(ArchR_matrix)) {
       ArchR_matrix <- "GeneScoreMatrix"
     }
-    if (ArchR_matrix == "GeneScoreMatrix") {
-      gene_score_matrix <- suppressMessages(ArchR::getMatrixFromProject(object, useMatrix = "GeneScoreMatrix"))
-      feature_names <- gene_score_matrix@elementMetadata$name
-      use_matrix <- gene_score_matrix@assays@data$GeneScoreMatrix
+    if (ArchR_matrix %in% c("GeneScoreMatrix", "GeneExpressionMatrix")) {
+      archr_matrix <- suppressMessages(ArchR::getMatrixFromProject(object, useMatrix = ArchR_matrix))
+      feature_names <- archr_matrix@elementMetadata$name
+      use_matrix <- archr_matrix@assays@data[[ArchR_matrix]]
       rownames(use_matrix) <- feature_names
       # Subset to current cells
       if (!is.null(use_cells)) {
-        use_matrix <- use_matrix[,use_cells]
+        use_matrix <- use_matrix[,use_cells, drop = FALSE]
       }
       # Subset to current features
       if (!is.null(use_features)) {
-        use_matrix <- use_matrix[use_features,]
+        use_matrix <- use_matrix[use_features,, drop = FALSE]
       }
     } else {
       # Cells to use
