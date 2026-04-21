@@ -638,8 +638,11 @@ pruneTree <- function(object,
     dist_matrix_provided <- FALSE
   }
 
+  use_batch_metrics <- any(batch_correction_method == "Harmony")
+  no_batch_correction <- all(batch_correction_method == "none")
+
   # If 'Harmony' batch correction was used, extract batch labels
-  if (batch_correction_method == "Harmony") {
+  if (use_batch_metrics) {
     batches <- .retrieveData(object = object, key = key, type = "cell_metadata", name = batch_labels)
     if ("Rle" %in% methods::is(batches)) {
       batches <- methods::as(batches, "character")
@@ -650,7 +653,7 @@ pruneTree <- function(object,
   # Set downsampling rate
   if (downsampling_rate == "auto") {
     downsampling_rate <- min(1, (1/2)^(log10(length(cell_IDs)/5000)))
-    if (batch_correction_method == "none") {
+    if (no_batch_correction) {
       downsampling_rate <- downsampling_rate*0.5
     }
   }
@@ -670,7 +673,7 @@ pruneTree <- function(object,
                        "\n - Object type: ", object_type,
                        `if`(length(provided_input) > 0, paste0("\n - Provided inputs: ", paste(provided_input, collapse = ", ")), ""),
                        "\n - # of cells: ", length(cell_IDs),
-                       "\n - # of batches: ", `if`(batch_correction_method == "none", 1, dplyr::n_distinct(batches)),
+                       "\n - # of batches: ", `if`(no_batch_correction, 1, dplyr::n_distinct(batches)),
                        "\n - # of modalities: ", n_modalities,
                        "\n - # of subtrees: ", n_subtrees,
                        "\n - # of levels: ", n_levels,
@@ -698,7 +701,7 @@ pruneTree <- function(object,
                                                     paste0(">0 reads"), paste0(">1 read per ", min_reads, " cells")),
                        "\n - Normalization method: ", normalization_method,
                        "\n - Batch correction method: ", batch_correction_method,
-                       `if`(batch_correction_method != 'none', paste0("\n - Metadata column containing batch information: ", batch_labels), ""),
+                       `if`(use_batch_metrics, paste0("\n - Metadata column containing batch information: ", batch_labels), ""),
                        "\n - Clustering parameters provided: ", `if`(length(cluster_params) == 0, "No",
                                                                      paste0("\n     - ", paste0(paste0(names(cluster_params), ": ",
                                                                                                        cluster_params),
@@ -726,7 +729,7 @@ pruneTree <- function(object,
   selected_metrics <- all_metrics[c(1:11,
                                     `if`(collect_all_metrics == TRUE | max_repeat_errors > 0, 12:15, NULL),
                                     `if`(max_repeat_errors > 0, 16:19, NULL),
-                                    `if`(batch_correction_method == "Harmony", 20:22, NULL),
+                                    `if`(use_batch_metrics, 20:22, NULL),
                                     `if`(collect_all_metrics == TRUE | min_connections > 0, 23, NULL),
                                     `if`(methods::is(distance_awareness, "numeric"), 24:25, NULL),
                                     26:27)]
@@ -893,12 +896,12 @@ pruneTree <- function(object,
                     # Run comparison
                     comparison_output <- .runPermutationTest(cluster1_name = child1_name,
                                                              cluster1_cells = child1_cells,
-                                                             cluster1_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                             cluster1_cell_batches = `if`(use_batch_metrics,
                                                                                           batches[child1_cells],
                                                                                           NULL),
                                                              cluster2_name = child2_name,
                                                              cluster2_cells = child2_cells,
-                                                             cluster2_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                             cluster2_cell_batches = `if`(use_batch_metrics,
                                                                                           batches[child2_cells],
                                                                                           NULL),
                                                              alpha = ifelse(p_adjust != "none", adjusted_alpha, alpha),
@@ -1074,12 +1077,12 @@ pruneTree <- function(object,
                         # Run comparison 1
                         comparison1_output <- .runPermutationTest(cluster1_name = child_partner1_name,
                                                                   cluster1_cells = child_partner1_cells,
-                                                                  cluster1_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                                  cluster1_cell_batches = `if`(use_batch_metrics,
                                                                                                batches[child_partner1_cells],
                                                                                                NULL),
                                                                   cluster2_name = partner2_name,
                                                                   cluster2_cells = partner2_cells,
-                                                                  cluster2_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                                  cluster2_cell_batches = `if`(use_batch_metrics,
                                                                                                batches[partner2_cells],
                                                                                                NULL),
                                                                   alpha = ifelse(p_adjust != "none", adjusted_alpha, alpha),
@@ -1136,12 +1139,12 @@ pruneTree <- function(object,
                         # Run comparison 2
                         comparison2_output <- .runPermutationTest(cluster1_name = child_partner2_name,
                                                                   cluster1_cells = child_partner2_cells,
-                                                                  cluster1_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                                  cluster1_cell_batches = `if`(use_batch_metrics,
                                                                                                batches[child_partner2_cells],
                                                                                                NULL),
                                                                   cluster2_name = partner1_name,
                                                                   cluster2_cells = partner1_cells,
-                                                                  cluster2_cell_batches = `if`(batch_correction_method == "Harmony",
+                                                                  cluster2_cell_batches = `if`(use_batch_metrics,
                                                                                                batches[partner1_cells],
                                                                                                NULL),
                                                                   alpha = ifelse(p_adjust != "none", adjusted_alpha, alpha),
@@ -1597,7 +1600,7 @@ pruneTree <- function(object,
                                      sample_max = sample_max,
                                      downsampling_rate = downsampling_rate,
                                      batch_correction_method = batch_correction_method,
-                                     batches = `if`(batch_correction_method == "Harmony",
+                                     batches = `if`(use_batch_metrics,
                                                     batches[current_cell_IDs],
                                                     NULL),
                                      tree_records = data.frame(tree_type = NULL,
