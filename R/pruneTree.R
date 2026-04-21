@@ -310,6 +310,7 @@ pruneTree <- function(object,
                              "countsplit" = FALSE,
                              "countsplit_suffix" = NULL,
                              "countsplit_text" = "",
+                             "integration_backend" = NULL,
                              "random_seed" = 1)
 
   # For any parameters set to NULL, use parameters from buildTree or defaults
@@ -335,6 +336,7 @@ pruneTree <- function(object,
   countsplit <- .retrieveParam(countsplit, "countsplit", buildTree_parameters, default_parameters)
   countsplit_suffix <- .retrieveParam(countsplit_suffix, "countsplit_suffix", buildTree_parameters, default_parameters)
   countsplit_text <- .retrieveParam(NULL, "countsplit_text", buildTree_parameters, default_parameters)
+  integration_backend <- .retrieveParam(NULL, "integration_backend", buildTree_parameters, default_parameters)
   random_seed <- .retrieveParam(random_seed, "random_seed", buildTree_parameters, default_parameters)
   # Verify parameter validity
   .validInput(alpha, "alpha")
@@ -475,7 +477,7 @@ pruneTree <- function(object,
     .validInput(normalization_method, "normalization_method", list(object, n_modalities, use_assay))
     .validInput(batch_correction_method, "batch_correction_method", n_modalities)
     .validInput(batch_labels, "batch_labels", object)
-    .validInput(distance_approx, "distance_approx", list(length(cell_IDs), object_type, n_modalities))
+    .validInput(distance_approx, "distance_approx", list(length(cell_IDs), object, n_modalities, integration_backend))
   } else if (!is.null(buildTree_parameters)) {
     input_matrix_provided <- FALSE
     # Parameters for extracting matrices
@@ -506,7 +508,7 @@ pruneTree <- function(object,
     .validInput(normalization_method, "normalization_method", list(object, n_modalities, use_assay))
     .validInput(batch_correction_method, "batch_correction_method", n_modalities)
     .validInput(batch_labels, "batch_labels", object)
-    .validInput(distance_approx, "distance_approx", list(length(cell_IDs), object_type, n_modalities))
+    .validInput(distance_approx, "distance_approx", list(length(cell_IDs), object, n_modalities, integration_backend))
 
     # If reduction was not recalculated for buildTree, there will only be one input matrix
     if (buildTree_parameters[["subtree_reductions"]] == FALSE) {
