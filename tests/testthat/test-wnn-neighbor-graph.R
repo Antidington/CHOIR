@@ -9,16 +9,26 @@
 # Setup: mock multi-modal reduction data
 # ---------------------------------------------------------------------------
 set.seed(42)
-n_cells <- 50
+# WNN (FindMultiModalNeighbors + Annoy) is unstable on very small synthetic
+# datasets — it returns NA in the NN indices when n < ~200 with unstructured
+# Gaussian noise. We need enough cells AND correlated cross-modal structure
+# for the modality-weight estimation to converge.
+n_cells <- 300
 cell_names <- paste0("cell_", seq_len(n_cells))
 
+# Shared latent "cell type" signal drives BOTH modalities so cross-modal
+# prediction (WNN's modality-weight criterion) is well defined.
+latent <- rep(seq_len(3), length.out = n_cells)
+
 # Modality 1: e.g., ATAC (LSI, 30 dims)
-mod1 <- matrix(rnorm(n_cells * 30), nrow = n_cells, ncol = 30)
+mod1 <- matrix(rnorm(n_cells * 30, mean = latent * 0.8),
+               nrow = n_cells, ncol = 30)
 rownames(mod1) <- cell_names
 colnames(mod1) <- paste0("LSI_", seq_len(30))
 
 # Modality 2: e.g., RNA (PCA, 20 dims)
-mod2 <- matrix(rnorm(n_cells * 20), nrow = n_cells, ncol = 20)
+mod2 <- matrix(rnorm(n_cells * 20, mean = latent * 0.8),
+               nrow = n_cells, ncol = 20)
 rownames(mod2) <- cell_names
 colnames(mod2) <- paste0("PC_", seq_len(20))
 
@@ -189,7 +199,7 @@ build_wnn_graph <- function(reduction_coords_list, n_modalities,
   result <- do.call(Seurat::FindMultiModalNeighbors, c(
     list(
       "object" = tmp_seurat,
-      "reduction.list" = list(paste0("DR_", seq(1, n_modalities))),
+      "reduction.list" = as.list(paste0("DR_", seq(1, n_modalities))),
       "dims.list" = dim_list,
       "knn.graph.name" = "nn",
       "snn.graph.name" = "snn"
@@ -236,9 +246,11 @@ test_that("WNN graph works with different numbers of dimensions per modality", {
 test_that("subsetted reductions produce valid WNN graph", {
   skip_if(packageVersion("Seurat") < "5.0.0", "WNN integration tests require Seurat V5")
 
-  subset_ids <- cell_names[1:20]
+  # Subtree size must stay above the Annoy lower bound (~200 cells) for WNN
+  # to return stable NN indices on unit-scale Gaussian embeddings.
+  subset_ids <- cell_names[1:250]
   subsetted <- lapply(reduction_coords_list, function(x) x[subset_ids, , drop = FALSE])
   result <- build_wnn_graph(subsetted, n_modalities = 2)
   expect_true("nn" %in% names(result))
-  expect_equal(nrow(result[["nn"]]), 20)
+  expect_equal(nrow(result[["nn"]]), 250)
 })

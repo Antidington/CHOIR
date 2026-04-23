@@ -560,15 +560,15 @@ buildParentTree <- function(object,
     }
     # Find neighbors
     P0_nearest_neighbors <- do.call(Seurat::FindMultiModalNeighbors, c(list("object" = tmp_seurat,
-                                                                            "reduction.list" = list(paste0("DR_", seq(1, n_modalities))),
-                                                                            "dim.list" = dim_list,
+                                                                            "reduction.list" = as.list(paste0("DR_", seq(1, n_modalities))),
+                                                                            "dims.list" = dim_list,
                                                                             "knn.graph.name" = "nn",
                                                                             "snn.graph.name" = "snn"),
                                                                        neighbor_params))@graphs
     # Dimensionality reduction distance matrix
     if (distance_approx == FALSE) {
       P0_reduction_dist <- .getMultiModalDistance(tmp_seurat,
-                                                  reduction_list = list(paste0("DR_", seq(1, n_modalities))),
+                                                  reduction_list = as.list(paste0("DR_", seq(1, n_modalities))),
                                                   dim_list = dim_list)
       object <- .storeData(object, key, "reduction", P0_reduction_dist, "P0_reduction_dist")
     }
