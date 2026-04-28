@@ -186,10 +186,16 @@ build_wnn_graph <- function(reduction_coords_list, n_modalities,
     dim_list[[i]] <- 1:ncol(reduction_coords_list[[i]])
   }
 
+  max_neighbors <- max(1, n_cells - 1)
+  if (!any(names(neighbor_params) == "k.nn")) neighbor_params$k.nn <- min(ifelse(max_neighbors < 100, 10, 20), max_neighbors)
+  neighbor_params$k.nn <- min(neighbor_params$k.nn, max_neighbors)
+  if (!any(names(neighbor_params) == "knn.range")) neighbor_params$knn.range <- min(ifelse(max_neighbors < 100, 20, 200), max_neighbors)
+  neighbor_params$knn.range <- max(neighbor_params$knn.range, neighbor_params$k.nn)
+
   result <- do.call(Seurat::FindMultiModalNeighbors, c(
     list(
       "object" = tmp_seurat,
-      "reduction.list" = list(paste0("DR_", seq(1, n_modalities))),
+      "reduction.list" = paste0("DR_", seq(1, n_modalities)),
       "dims.list" = dim_list,
       "knn.graph.name" = "nn",
       "snn.graph.name" = "snn"

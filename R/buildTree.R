@@ -724,17 +724,23 @@ buildTree <- function(object,
                                                                      key = paste0("DR_", i, "_"), assay = 'tmp')
       dim_list[[i]] <- 1:ncol(P0_dim_reduction[["reduction_coords"]][[i]])
     }
+    P0_neighbor_params <- neighbor_params
+    max_neighbors <- max(1, n_cells - 1)
+    if (!any(names(P0_neighbor_params) == "k.nn")) P0_neighbor_params$k.nn <- min(ifelse(max_neighbors < 100, 10, 20), max_neighbors)
+    P0_neighbor_params$k.nn <- min(P0_neighbor_params$k.nn, max_neighbors)
+    if (!any(names(P0_neighbor_params) == "knn.range")) P0_neighbor_params$knn.range <- min(ifelse(max_neighbors < 100, 20, 200), max_neighbors)
+    P0_neighbor_params$knn.range <- max(P0_neighbor_params$knn.range, P0_neighbor_params$k.nn)
     # Find neighbors
     P0_nearest_neighbors <- do.call(Seurat::FindMultiModalNeighbors, c(list("object" = tmp_seurat,
-                                                                            "reduction.list" = list(paste0("DR_", seq(1, n_modalities))),
-                                                                            "dim.list" = dim_list,
+                                                                            "reduction.list" = paste0("DR_", seq(1, n_modalities)),
+                                                                            "dims.list" = dim_list,
                                                                             "knn.graph.name" = "nn",
                                                                             "snn.graph.name" = "snn"),
-                                                                       neighbor_params))@graphs
+                                                                       P0_neighbor_params))@graphs
     # Dimensionality reduction distance matrix
     if (distance_approx == FALSE) {
       P0_reduction_dist <- .getMultiModalDistance(tmp_seurat,
-                                                  reduction_list = list(paste0("DR_", seq(1, n_modalities))),
+                                                  reduction_list = paste0("DR_", seq(1, n_modalities)),
                                                   dim_list = dim_list)
       object <- .storeData(object, key, "reduction", P0_reduction_dist, "P0_reduction_dist")
     }
@@ -1040,17 +1046,23 @@ buildTree <- function(object,
                                                                            key = paste0("DR_", m, "_"), assay = 'tmp')
             dim_list[[m]] <- 1:ncol(P_i_dim_reduction[["reduction_coords"]][[m]])
           }
+          P_i_neighbor_params <- neighbor_params
+          max_neighbors <- max(1, nrow(P_i_dim_reduction[["reduction_coords"]][[1]]) - 1)
+          if (!any(names(P_i_neighbor_params) == "k.nn")) P_i_neighbor_params$k.nn <- min(ifelse(max_neighbors < 100, 10, 20), max_neighbors)
+          P_i_neighbor_params$k.nn <- min(P_i_neighbor_params$k.nn, max_neighbors)
+          if (!any(names(P_i_neighbor_params) == "knn.range")) P_i_neighbor_params$knn.range <- min(ifelse(max_neighbors < 100, 20, 200), max_neighbors)
+          P_i_neighbor_params$knn.range <- max(P_i_neighbor_params$knn.range, P_i_neighbor_params$k.nn)
           # Find neighbors
           P_i_nearest_neighbors <- do.call(Seurat::FindMultiModalNeighbors, c(list("object" = tmp_seurat,
-                                                                                   "reduction.list" = list(paste0("DR_", seq(1, n_modalities))),
-                                                                                   "dim.list" = dim_list,
+                                                                                   "reduction.list" = paste0("DR_", seq(1, n_modalities)),
+                                                                                   "dims.list" = dim_list,
                                                                                    "knn.graph.name" = "nn",
                                                                                    "snn.graph.name" = "snn"),
-                                                                              neighbor_params))@graphs
+                                                                              P_i_neighbor_params))@graphs
           # Dimensionality reduction distance matrix
           if (distance_approx == FALSE) {
             P_i_reduction_dist <- .getMultiModalDistance(tmp_seurat,
-                                                         reduction_list = list(paste0("DR_", seq(1, n_modalities))),
+                                                         reduction_list = paste0("DR_", seq(1, n_modalities)),
                                                          dim_list = dim_list)
             object <- .storeData(object, key, "reduction", P_i_reduction_dist, paste0("P", i, "_reduction_dist"))
           }

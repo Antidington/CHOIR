@@ -338,7 +338,7 @@
       } else {
         if (any(names(input) %in% c("object",
                                     "reduction.list",
-                                    "dim.list",
+                                    "dims.list",
                                     "knn.graph.name",
                                     "snn.graph.name",
                                     "weighted.nn.name",
